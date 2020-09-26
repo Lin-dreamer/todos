@@ -19,4 +19,4 @@ nodemon app.js
 ```
 
 ## 页面展示
-![](https://github.com/Lin-dreamer/imgStorage/blob/master/todos/todo.gif)
+![动图展示](https://github.com/Lin-dreamer/imgStorage/blob/master/todos/todo.gif)
