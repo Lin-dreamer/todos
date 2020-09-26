@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Todo List</title>
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/index.css">
+    <link rel="stylesheet" href="/plugins/nprogress/nprogress.css">
+</head>
+
+<body>
+    <!-- todoapp start -->
+    <section class="todoapp">
+        <header class="header">
+            <h1>todos</h1>
+            <input class="new-todo" placeholder="What needs to be done?" autofocus id="taskInp">
+        </header>
+
+        <!-- main start -->
+        <section class="main">
+            <input class="toggle-all" type="checkbox">
+            <label for="toggle-all">Mark all as complete</label>
+            <ul class="todo-list" id="todoList">
+                <!-- 列表项处于编辑状态用类名editing，处于完成状态用completed -->
+                <!-- <li class="completed">
+                    <div class="view">
+                        <input class="toggle" type="checkbox" checked>
+                        <label>Taste JavaScript</label>
+                        <button class="destroy"></button>
+                    </div>
+                    <input class="edit" value="Create a TodoMVC template">
+                </li>
+                <li class="">
+                    <div class="view">
+                        <input class="toggle" type="checkbox">
+                        <label>Buy a unicorn</label>
+                        <button class="destroy"></button>
+                    </div>
+                    <input class="edit" value="Rule the web">
+                </li> -->
+            </ul>
+        </section>
+        <!-- main end -->
+
+        <!-- fotter start -->
+        <footer class="footer">
+            <!-- 默认剩余0个待办任务 -->
+            <span class="todo-count"><strong id="count">0</strong> item left</span>
+            <ul class="filters">
+                <li>
+                    <a id="all" href="javascript:;">All</a>
+                </li>
+                <li>
+                    <a id="actived" href="javascript:;">Active</a>
+                </li>
+                <li>
+                    <a id="completed" href="javascript:;">Completed</a>
+                </li>
+            </ul>
+            <!-- 如果已完成的任务数量为0，则隐藏该button -->
+            <button class="clear-completed" id="clearCompleted">Clear completed</button>
+        </footer>
+        <!-- fotter start -->
+
+    </section>
+    <!-- todo app end -->
+
+    <!-- script 相关内容 start -->
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/template-web.js"></script>
+    <!-- 发送ajax请求时显示进度条 -->
+    <script src="/plugins/nprogress/nprogress.js"></script>
+    <!-- 用来显示任务的模板 -->
+    <script type="text/html" id="taskTp">
+        {{each tasks}}
+        <li class="{{$value.completed ? 'completed': ''}}" data-id={{$value._id}}>
+            <div class="view">
+                <input class="toggle" type="checkbox" {{$value.completed ? "checked": ''}}>
+                <label>{{$value.title}}</label>
+                <button class="destroy"></button>
+            </div>
+            <input class="edit" value="">
+        </li>
+        {{/each}}
+    </script>
+    <script>
+        // 存放任务列表的数组
+        var taskArr = [];
+        // 存放任务列表的ul元素
+        var taskBox = $('#todoList');
+        // 任务输入input框
+        var taskInp = $('#taskInp');
+        // 显示未完成任务的strong元素
+        var count = $('#count');
+        // 清除已完成任务的btn
+        var clearCompletedBtn = $('#clearCompleted');
+        // 用于显示所有任务的元素
+        var all = $('#all');
+        // 用于显示未完成任务的元素
+        var actived = $('#actived');
+        // 用于显示已完成任务的元素
+        var completed = $('#completed');
+
+        // 当页面中有ajax请求发送时触发
+        $(document).on('ajaxStart', function() {
+            NProgress.start()
+        })
+
+        // 当页面中有ajax请求完成时触发
+        $(document).on('ajaxComplete', function() {
+            NProgress.done()
+        });
+
+        // 获取任务列表
+        $.ajax({
+            type: 'get',
+            url: '/todo/task',
+            success: function(response) {
+                taskArr = response;
+                // 重新将数组和模板拼接
+                render();
+                // 计算未完成任务的数量
+                calTask();
+            }
+        });
+
+        // 回车时会添加新任务
+        taskInp.on('keyup', function(e) {
+            // 在文本框中键入回车键时
+            if (e.keyCode === 13) {
+                var taskName = $(this).val().trim();
+                if (taskName.trim().length == 0) {
+                    alert('请输入任务名称');
+                    return;
+                };
+                $.ajax({
+                    type: 'post',
+                    url: '/todo/addTask',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        title: taskName,
+                    }),
+                    success: function(response) {
+                        taskArr.push(response);
+                        // 重新将数组和模板拼接
+                        render();
+                        // 计算未完成任务的数量
+                        calTask();
+                        // 清空输入框里的值
+                        taskInp.val('');
+                    },
+                })
+            }
+        })
+
+        // 删除任务
+        taskBox.on('click', '.destroy', function() {
+            // 根据任务id发送ajax请求
+            var id = $(this).parent().parent().attr('data-id');
+            $.ajax({
+                type: 'get',
+                url: '/todo/deleteTask',
+                data: {
+                    _id: id,
+                },
+                success: function(res) {
+                    // 从任务数组中找到已经删除掉的任务的索引
+                    var index = taskArr.findIndex(item => item._id == id);
+                    // 将任务从数组中删除
+                    taskArr.splice(index, 1);
+                    // 重新将数组和模板拼接
+                    render();
+                    // 计算未完成任务的数量
+                    calTask();
+                }
+            });
+        })
+
+        // 点击单选框会自动更新任务的完成状态
+        taskBox.on('change', '.toggle', function() {
+            var id = $(this).parent().parent().attr('data-id');
+            var status = $(this).is(':checked');
+            $.ajax({
+                type: 'post',
+                url: '/todo/modifyTask',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    _id: id,
+                    completed: status
+                }),
+                success: function(res) {
+                    var task = taskArr.find(item => item._id == id);
+                    task.completed = status;
+                    // 重新将数组和模板拼接
+                    render();
+                    // 计算未完成任务的数量
+                    calTask();
+                },
+            });
+
+        });
+
+        // 双击编辑任务
+        taskBox.on('dblclick', 'label', function() {
+            $(this).parent().parent().addClass('editing');
+            $(this).parent().siblings('input').focus();
+            $(this).parent().siblings('input').val($(this).text().trim());
+        });
+
+        // 编辑任务完成后失去焦点根据id来更新任务名字
+        taskBox.on('blur', '.edit', function(e) {
+            $(this).parent().removeClass('editing');
+            var id = $(this).parent().attr('data-id');
+            var taskName = $(this).val().trim();
+            $.ajax({
+                type: 'post',
+                url: '/todo/modifyTask',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    _id: id,
+                    title: taskName,
+                }),
+                success: function(res) {
+                    var task = taskArr.find(item => item._id == id);
+                    task.title = taskName;
+                    // 重新将数组和模板拼接
+                    render();
+                },
+            });
+
+        })
+
+        // 编辑任务名字完成后回车触发失去焦点事件
+        taskBox.on('keyup', '.edit', function(e) {
+            e.keyCode === 13 && (e.target.blur());
+        });
+
+        // 清除已完成的任务
+        clearCompletedBtn.on('click', function() {
+            $.ajax({
+                type: 'get',
+                url: '/todo/clearTask',
+                success: function(res) {
+                    for (var i = taskArr.length - 1; i >= 0; i--) {
+                        if (taskArr[i].completed == true) {
+                            console.log(taskArr[i], i);
+                            taskArr.splice(i, 1)
+                        }
+                    }
+                    // 重新将数组和模板拼接
+                    render();
+                    // 计算未完成任务的数量
+                    calTask();
+                },
+            });
+        });
+
+        // 显示未完成的任务
+        all.on('click', function() {
+            render();
+        });
+
+        // 显示未完成的任务
+        actived.on('click', function() {
+            var tasks = taskArr.filter(item => item.completed == false)
+            render(tasks);
+        });
+
+        // 显示已完成的任务
+        completed.on('click', function() {
+            var tasks = taskArr.filter(item => item.completed == true)
+            render(tasks);
+        })
+
+        // 重新将数组和模板拼接
+        function render(tasks) {
+            // 默认渲染的数据是全部任务，也可以传入其他条件筛选出的数组用来渲染
+            if (tasks == undefined) {
+                tasks = taskArr;
+            }
+            var taskHtml = template('taskTp', {
+                tasks: tasks
+            });
+            taskBox.html(taskHtml);
+        }
+
+        // 计算未完成任务的数量
+        function calTask() {
+            var num = 0;
+            for (var i = 0; i < taskArr.length; i++) {
+                if (taskArr[i].completed == false) {
+                    num += 1;
+                }
+            };
+            count.text(num);
+            // 如果已完成的任务数量为0，则隐藏clearCompletedBtn元素
+            var doneNum = taskArr.length - num;
+            if (doneNum == 0) {
+                clearCompletedBtn.css('display', 'none');
+            } else {
+                clearCompletedBtn.css('display', 'block');
+            };
+        };
+    </script>
+    <!-- script 相关内容 end -->
+</body>
+
+
+</html>
