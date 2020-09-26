@@ -4,7 +4,8 @@
 ## 目的
 - 学习ajax
 - 在html页面中对数据进行渲染
-
+## 技术栈
+html + css + javascript + jQuery + mongo + express
 ## 下载node.js
 下载地址：http://nodejs.cn/download/
 
